@@ -130,6 +130,23 @@ qp_mgr::~qp_mgr()
 	qp_logdbg("delete done");
 }
 
+static inline int is_power_of_2(uint32_t n)
+{
+	return n && !(n & (n - 1));
+}
+
+static inline uint32_t align32pow2(uint32_t x)
+{
+	x--;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+
+	return x + 1;
+}
+
 int qp_mgr::configure(struct ibv_comp_channel* p_rx_comp_event_channel)
 {
 	qp_logdbg("Creating QP of transport type '%s' on ibv device '%s' [%p] on port %d",
@@ -144,6 +161,10 @@ int qp_mgr::configure(struct ibv_comp_channel* p_rx_comp_event_channel)
 		qp_logwarn("Allocating only %d Rx QP work requests while user requested %s=%d for QP on <%p, %d>",
 			   m_max_qp_wr, SYS_VAR_RX_NUM_WRE, m_rx_num_wr, m_p_ib_ctx_handler, m_port_num);
 		m_rx_num_wr = m_max_qp_wr;
+	}
+
+	if (!is_power_of_2(m_rx_num_wr)) {
+		m_rx_num_wr = align32pow2(m_rx_num_wr);
 	}
 
 	// Check device capabilities for dummy send support
@@ -318,7 +339,6 @@ void qp_mgr::release_rx_buffers()
 			}
 		}
 	}
-
 	// Wait for all FLUSHed WQE on Rx CQ
 	qp_logdbg("draining rx cq_mgr %p (last_posted_rx_wr_id = %x)", m_p_cq_mgr_rx, m_last_posted_rx_wr_id);
 	uintptr_t last_polled_rx_wr_id = 0;
