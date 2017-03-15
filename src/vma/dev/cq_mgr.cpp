@@ -1632,14 +1632,6 @@ inline volatile struct mlx5_cqe64* cq_mgr_mlx5::check_cqe(void)
 		return NULL;/* No CQE. */
 	}
 
-
-
-//	if (unlikely((op_own & MLX5_CQE_OWNER_MASK) == !(m_cq_cons_index & m_cq_size))) {
-//		return NULL;
-//	} else if (unlikely((op_own >> 4) == MLX5_CQE_INVALID)) {
-//		return NULL;
-//	}
-
 	return cqe;
 }
 
@@ -1716,11 +1708,6 @@ inline mem_buf_desc_t*		cq_mgr_mlx5::poll(uint32_t&	opcode, uint32_t&	status)
 	}
 
 	return buff;
-}
-
-inline uint8_t cq_mgr_mlx5::get_cqe_l3_hdr_type(volatile struct mlx5_cqe64 *cqe)
-{
-	return (cqe->l4_hdr_type_etc >> 2) & 0x3;
 }
 
 inline void		cq_mgr_mlx5::cqe64_to_mem_buff_desc(volatile struct mlx5_cqe64 *cqe, mem_buf_desc_t* p_rx_wc_buf_desc, uint32_t& opcode, uint32_t& status)
