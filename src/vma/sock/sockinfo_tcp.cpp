@@ -1689,7 +1689,11 @@ ssize_t sockinfo_tcp::rx(const rx_call_t call_type, iovec* p_iov, ssize_t sz_iov
 			goto err;
 			}
 
-			if (m_timer_pending) tcp_timer();
+			if (m_timer_pending) {
+				m_tcp_con_lock.lock();
+				tcp_timer();
+				m_tcp_con_lock.unlock();
+			}
 
 			ret = rx_wait_helper(poll_count, block_this_run);
 
