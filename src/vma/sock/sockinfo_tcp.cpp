@@ -1658,17 +1658,17 @@ ssize_t sockinfo_tcp::rx(const rx_call_t call_type, iovec* p_iov, ssize_t sz_iov
 	si_tcp_logfunc("rx: iov=%p niovs=%d", p_iov, sz_iov);
 	 /* poll rx queue till we have something */
 	lock_tcp_con();
-
 	return_reuse_buffers_postponed();
+	unlock_tcp_con();
 
 	while (m_rx_ready_byte_count < total_iov_sz) {
-        	if (unlikely(g_b_exit)) {
+			if (unlikely(g_b_exit)) {
 			ret = -1;
 			errno = EINTR;
 			si_tcp_logdbg("returning with: EINTR");
 			goto err;
 		}
-        	if (unlikely(!is_rtr())) {
+			if (unlikely(!is_rtr())) {
 			if (m_conn_state == TCP_CONN_INIT) {
 				si_tcp_logdbg("RX on never connected socket");
 				errno = ENOTCONN;
@@ -1687,10 +1687,17 @@ ssize_t sockinfo_tcp::rx(const rx_call_t call_type, iovec* p_iov, ssize_t sz_iov
 				ret = 0;
 			}
 			goto err;
-        	}
-        	ret = rx_wait(poll_count, block_this_run);
-        	if (unlikely(ret < 0)) goto err;
+			}
+
+			if (m_timer_pending) tcp_timer();
+
+			ret = rx_wait_helper(poll_count, block_this_run);
+
+			if (unlikely(ret < 0)) goto err;
 	}
+
+	lock_tcp_con();
+
 	si_tcp_logfunc("something in rx queues: %d %p", m_n_rx_pkt_ready_list_count, m_rx_pkt_ready_list.front());
 
 	total_rx = dequeue_packet(p_iov, sz_iov, (sockaddr_in *)__from, __fromlen, in_flags, &out_flags);
@@ -1711,9 +1718,8 @@ ssize_t sockinfo_tcp::rx(const rx_call_t call_type, iovec* p_iov, ssize_t sz_iov
 		}
 	}
 
-	 // do it later - may want to ack less frequently ???:
-
 	unlock_tcp_con();
+
 	si_tcp_logfunc("rx completed, %d bytes sent", total_rx);
 
 #ifdef VMA_TIME_MEASURE
@@ -1727,10 +1733,12 @@ err:
 	INC_ERR_RX_COUNT;
 #endif
 
-	if (errno == EAGAIN)
+	lock_tcp_con();
+	if (errno == EAGAIN) {
 		m_p_socket_stats->counters.n_rx_eagain++;
-	else
+	} else {
 		m_p_socket_stats->counters.n_rx_errors++;
+	}
 	unlock_tcp_con();
 	return ret;
 }
